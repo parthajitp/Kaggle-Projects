@@ -1,0 +1,283 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# ### Car price prediction
+
+# In[22]:
+
+
+# Import libraries
+import pandas as pd
+import seaborn as sns
+import numpy as np
+import matplotlib.pyplot as plt
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+
+# In[49]:
+
+
+# Additional libraries
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.model_selection import train_test_split
+
+
+# In[3]:
+
+
+# Reading the data
+df_init = pd.read_csv('car data.csv')
+
+
+# In[4]:
+
+
+# High level analaysis of data
+df_init.head()
+
+
+# In[5]:
+
+
+df_init.shape
+
+
+# In[6]:
+
+
+df_init.describe()
+
+
+# In[7]:
+
+
+df_init.info()
+
+
+# In[8]:
+
+
+columns = df_init.columns
+
+#checking unique values in the category type columns(object)
+for column in columns:
+    if df_init[column].dtypes == 'object':
+        print('*'*40)
+        print(df_init[column].unique())
+    
+
+
+# In[9]:
+
+
+df_init['Owner'].dtypes
+
+
+# In[10]:
+
+
+# Checking some of the other columns
+df_init['Owner'].unique()
+
+
+# In[11]:
+
+
+# Cheking for null values
+df_init.isnull().sum()
+
+
+# In[12]:
+
+
+# Adding a new column to find the Age of car
+df_init['Age'] = df_init['Year'].apply(lambda x: 2021 - x).astype('int64')
+
+
+# In[13]:
+
+
+df_init.head()
+
+
+# In[14]:
+
+
+# dropping the column Year as it is redundant now
+df_init = df_init.drop(['Year'], axis = 1)
+df_init.head()
+
+
+# In[15]:
+
+
+# dropping the column Car_Name as it is not adding any value
+df_init = df_init.drop(['Car_Name'], axis = 1)
+df_init.head()
+
+
+# In[16]:
+
+
+# Converting categorical ariables into dummy variable
+df_final = pd.get_dummies(df_init, drop_first = True)
+
+
+# In[17]:
+
+
+df_final.head()
+
+
+# In[ ]:
+
+
+
+
+
+# In[31]:
+
+
+# Visualizing the correlation between the variables
+
+corr = df_final.corr()
+
+
+plt.figure(figsize=(15,15))
+sns.heatmap(corr, annot = True)
+plt.show()
+
+
+# In[38]:
+
+
+# Preparing the dataset for test train split
+X, y = df_final.iloc[:, 1:], df_final.iloc[:, 0]
+
+
+# In[39]:
+
+
+# Checking for feature importance
+model = ExtraTreesRegressor()
+model.fit(X, y)
+
+
+# In[40]:
+
+
+print(model.feature_importances_)
+
+
+# In[48]:
+
+
+# Plotting the graph for feature importance
+imp_features = pd.Series(data = model.feature_importances_, index = X.columns)
+plt.figure(figsize=(15, 15))
+plt.barh(imp_features.index, imp_features)
+plt.show()
+
+
+# In[52]:
+
+
+# Splitting the data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 1)
+
+
+# In[56]:
+
+
+# Building a Random Forest model
+from sklearn.ensemble import RandomForestRegressor
+
+base_rf = RandomForestRegressor()
+
+
+# In[54]:
+
+
+# Setting up the hyperparameters
+
+# Number of trees in Random Forest
+n_estimators = [100, 200, 400, 500, 800]
+# Maximum number of levels in the tree
+max_depth = [5, 10, 15, 20, 25, 30]
+# Minimum number of samples required to split a node
+min_samples_split = [2, 5, 10, 20, 50, 100]
+# Minimum number of samples required at each leaf node
+min_samples_leaf = [1, 2, 5, 10]
+
+
+# In[55]:
+
+
+# We will tune the hyperparameters using RandomGridSearch
+from sklearn.model_selection import RandomizedSearchCV
+
+random_grid = {'n_estimators': n_estimators,
+               'max_depth': max_depth,
+               'min_samples_split': min_samples_split,
+               'min_samples_leaf': min_samples_leaf}
+
+random_grid
+
+
+# In[57]:
+
+
+rf_random = RandomizedSearchCV(estimator = base_rf, param_distributions = random_grid, scoring='neg_mean_squared_error', n_iter = 10, cv = 5, verbose=2, random_state=42, n_jobs = 1)
+rf_random.fit(X_train,y_train)
+
+
+# In[58]:
+
+
+# Checking the best params
+rf_random.best_params_
+
+
+# In[59]:
+
+
+rf_random.best_score_
+
+
+# In[60]:
+
+
+predictions = rf_random.predict(X_test)
+
+
+# In[61]:
+
+
+sns.distplot(predictions - y_test)
+plt.show()
+
+
+# In[62]:
+
+
+# Getting an idea about the performance metrics of the model
+from sklearn import metrics
+
+print('MAE:', metrics.mean_absolute_error(y_test, predictions))
+print('MSE:', metrics.mean_squared_error(y_test, predictions))
+print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, predictions)))
+
+
+# In[63]:
+
+
+# Saving the model as a pickle file
+import pickle
+
+file = open('Car_Price_Pred_RF_model.pkl', 'wb')
+
+# Dump information to that file
+pickle.dump(rf_random, file)
+
+
+
